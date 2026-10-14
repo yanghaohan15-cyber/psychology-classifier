@@ -59,11 +59,21 @@ const SUBS = [
 const MARKS = [{ t: .4, no: '00', zh: '序', en: 'PROLOGUE' }, { t: 35.2, no: '01', zh: '欲', en: 'DESIRE' }, { t: 75.0, no: '02', zh: '真', en: 'SINCERITY' },
   { t: 112.4, no: '03', zh: '往', en: 'THE PAST' }, { t: 150.0, no: '04', zh: '来', en: 'THE FUTURE' }];
 const DIPS = [34.9, 74.6, 112.0, 149.6];
-const END = 212;
+const END = 212;                                                      // 故事时间的长度
+
+/* 时间变速：在两句字幕之间多留一口气，让画面自己停一停。这一段里故事时间只走两成，成片因此多出几秒。
+ * 各章的时刻都写在"故事时间"里；成片时间 t 先换算成故事时间 τ，音效登记时再换回成片时间。 */
+const HOLDS = [[64.64, 3.0, .1], [102.24, 3.0, .1]];                  // [故事时刻, 在成片里占几秒, 这段里故事时间走多快]：都落在两句字幕之间的空当里
+const KNOTS = (() => { const k = [[0, 0]]; let shift = 0; HOLDS.forEach(([s, L, v]) => { k.push([s + shift, s]); k.push([s + shift + L, s + L * v]); shift += L * (1 - v); }); k.push([END + shift, END]); return k; })();
+const lin = (k, x, i, j) => { for (let n = 0; n < k.length - 1; n++) { const a = k[n], b = k[n + 1]; if (x <= b[i] || n === k.length - 2) return a[j] + (b[j] - a[j]) * (x - a[i]) / (b[i] - a[i]); } };
+const warp = t => lin(KNOTS, t, 0, 1), unwarp = tau => lin(KNOTS, tau, 1, 0);
+const DUR = KNOTS[KNOTS.length - 1][0];
 
 VK.film({
-  dur: END, theme: 'night', meta: { title: '毒药谜题', root: -3, drone: .9 },
-  draw(fr, t) {
+  dur: DUR, theme: 'night', meta: { title: '毒药谜题', root: -3, drone: .9 },
+  draw(fr, filmT) {
+    if (!fr._sfxRaw) { fr._sfxRaw = fr.sfx; fr.sfx = (tt, name, p) => fr._sfxRaw(+unwarp(tt).toFixed(3), name, p); }
+    const t = warp(filmT);
     const U = []; fr.U = U;                                           // 本帧要画进底层（不吃辉光）的东西
     fr.look.bloom = .6;
     const dip = K.dips(t, DIPS, .5);
