@@ -1,0 +1,9 @@
+# 字体按 SIL OFL 授权，用 engine/get_fonts.py 下载，不进仓库
+engine/fonts/*.ttf
+engine/fonts/*.otf
+# 渲染中间产物
+films/*/renders/
+films/*/review/
+films/*/audio/
+__pycache__/
+*.pyc
