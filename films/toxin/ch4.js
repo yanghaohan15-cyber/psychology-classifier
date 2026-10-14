@@ -116,7 +116,7 @@ CH.parts.push({
     if (nz > 0 && nz < 1) {
       const amp = Math.sin(Math.PI * nz) * 16, ph = t * 22;
       const prev = fr.look.post;
-      fr.look.post = (x, tt) => { if (prev) prev(x, tt); const tmp = CH._tmp || (CH._tmp = document.createElement('canvas')); tmp.width = W; tmp.height = H; const tx = tmp.getContext('2d'); tx.drawImage(x.canvas, 0, 0); for (let y = 0; y < H; y += 24) { const dx = amp * Math.sin(y / 70 + ph); x.drawImage(tmp, 0, y, W, 24, dx, y, W, 24); } x.globalCompositeOperation = 'lighter'; x.fillStyle = rgba('#1E8F57', .16 * Math.sin(Math.PI * nz)); x.fillRect(0, 0, W, H); x.globalCompositeOperation = 'source-over'; };
+      fr.look.post = (x, tt) => { if (prev) prev(x, tt); const tmp = CH._tmp || (CH._tmp = document.createElement('canvas')); tmp.width = W; tmp.height = H; const tx = tmp.getContext('2d'); tx.drawImage(x.canvas, 0, 0); for (let y = 0; y < H; y += 24) { const dx = amp * Math.sin(y / 70 + ph); x.drawImage(tmp, 0, y, W, 24, dx, y, W, 24); } x.globalCompositeOperation = 'lighter'; x.fillStyle = rgba('#1E8F57', .07 * Math.sin(Math.PI * nz)); x.fillRect(0, 0, W, H); x.globalCompositeOperation = 'source-over'; };
     }
     /* 第 38 镜：日子快进。右上角第几晚 */
     let nNow = 31; for (let n = 32; n <= 60; n++) if (t >= CH.appear(n)) nNow = n;
@@ -135,6 +135,7 @@ CH.parts.push({
     }
     if (t >= T.in && t < T.in + .05) fr.sfx(T.in, 'chord', { root: 5, gain: .7 });
     if (t >= T.lapse && t < T.lapse + .05) fr.sfx(T.lapse, 'rise', { dur: 4.0, gain: .4 });
+    if (t >= T.coda && t < T.coda + .05) fr.sfx(T.coda, 'rise', { dur: 3.2, gain: .45 });
     CH.coda(fr, t, c);
   },
 });
@@ -142,6 +143,9 @@ const vialHalf = h => X.vialHalfW(h);
 
 /* ---------- 尾声：回到第 1 镜的构图 ---------- */
 const PAST = (() => { const out = []; for (let n = 60; n >= 1; n--) { const d = 61 - n, s = 1 / (1 + .16 * d); out.push({ n, d, s }); } return out; })();
+const GROUPS = [{ blur: 4.6, lo: .7, hi: 1.01 }, { blur: 2.6, lo: .45, hi: .7 }, { blur: 1.1, lo: -1, hi: .45 }]
+  .map(g => Object.assign(g, { items: PAST.filter(p => 1 - p.s > g.lo && 1 - p.s <= g.hi).reverse() }));   // 每组里由远及近
+const PASTC = []; let PASTKEY = '';
 CH.coda = function (fr, t, c) {
   if (t < T.coda + 1.2) return;
   const hero = ss(c.z, 140, 300), a = hero * (1 - .95 * ss(t, T.card, T.card + .8));
@@ -149,13 +153,20 @@ CH.coda = function (fr, t, c) {
   if (a > 0) {
     const vx = SX(c, hOf(61, 15)), by = c.yr;
     fr.U.push(x => {
-      for (const p of PAST.slice().reverse()) {
-        const k = 1 - p.s, px = vx - 230 - 980 * Math.pow(k, 1.1), py = by - 30 - 150 * k, h = 380 * p.s * Math.pow(DOSE[p.n], 1 / 3);
-        if (px < -60) continue;
-        x.save(); x.filter = `blur(${(1.2 + 5 * k).toFixed(1)}px)`;
-        X.vialUnder(x, px, py, h, { fill: Wd.KEPT[p.n] ? 0 : 1, a: a * (.25 + .6 * p.s), floor: .5, label: Wd.labelOf(p.n), residue: .7 });
-        x.restore();
+      /* 按远近分三组：每组先清清楚楚画进一张画布，再整组虚化一次贴上来（逐个开模糊太慢）。镜头不动时直接用缓存 */
+      const key = Math.round(vx) + ',' + Math.round(by);
+      if (key !== PASTKEY) {
+        PASTKEY = key;
+        GROUPS.forEach((g, gi) => {
+          const cv = PASTC[gi] || (PASTC[gi] = document.createElement('canvas')); cv.width = W; cv.height = H; const cx = cv.getContext('2d');
+          for (const p of g.items) {
+            const k = 1 - p.s, px = vx - 230 - 980 * Math.pow(k, 1.1), py = by - 30 - 150 * k, h = 380 * p.s * Math.pow(DOSE[p.n], 1 / 3);
+            if (px < -60) continue;
+            X.vialUnder(cx, px, py, h, { fill: Wd.KEPT[p.n] ? 0 : 1, a: .25 + .6 * p.s, floor: .5, label: Wd.labelOf(p.n), residue: .7 });
+          }
+        });
       }
+      GROUPS.forEach((g, gi) => { x.save(); x.globalAlpha = a; x.filter = `blur(${g.blur}px)`; x.drawImage(PASTC[gi], 0, 0); x.restore(); });
     });
     for (const p of PAST) { const k = 1 - p.s, px = vx - 230 - 980 * Math.pow(k, 1.1); if (px < -60 || !Wd.KEPT[p.n]) continue; const py = by - 30 - 150 * k, h = 380 * p.s * Math.pow(DOSE[p.n], 1 / 3); fr.glow(px - h * .1, py - h * .4, h * .35, '#BFE2F2', .07 * a * p.s); }
   }

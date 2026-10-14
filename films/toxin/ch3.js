@@ -36,7 +36,6 @@ CH.parts.push({
     const ca = ss(t, T.n2 - .2, T.n2 + .3) * out * (1 - .8 * trioK(t));
     if (ca > 0) { fr.text(String(nNow), 1742, 150, { font: 'latin', size: 92, color: C.ink, align: 'r', a: ca, glow: 10, glowA: .25 }); fr.text('晚', 1756, 168, { font: 'serifr', size: 34, color: C.label, align: 'l', a: ca }); fr.text('第', 1742 - fr.measure(String(nNow), { font: 'latin', size: 92 }) - 12, 168, { font: 'serifr', size: 34, color: C.label, align: 'r', a: ca }); }
     for (let n = 2; n <= 31; n++) { const A = CH.appear(n); if (t >= A && t < A + .05) fr.sfx(A, 'tick', { pitch: Math.max(0, 9 - Math.floor(n / 4)), gain: .45 }); }
-    for (let n = 2; n <= 30; n++) { const A = CH.appear(n) + .1; if (READ[n] < .5 && t >= A && t < A + .05) fr.sfx(A, 'tock', { pitch: -3, gain: .25 }); }
     /* 第 26 镜：扫描光往左扫过这一排满瓶，再折回来落到明天的瓶子上 */
     const [m31x, m31y] = CH.moonPos(c, 31, t), [v31x, v31y, v31h] = CH.vialPos(c, 31, t);
     const sk = seg(t, T.scan, T.back), bk = seg(t, T.back, T.back + .8);

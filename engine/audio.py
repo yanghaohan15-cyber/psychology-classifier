@@ -85,7 +85,95 @@ def ev_shimmer(rng, p):
     n = int(2.4 * SR); t = np.arange(n) / SR; out = np.zeros(n)
     for k in range(7): out += np.sin(2 * np.pi * hz(24 + PENTA[k + 2]) * t + rng.uniform(0, 6)) * np.exp(-((t - .25 - k * .06) / .5) ** 2)
     return pan(out * .035 * p.get("gain", 1), 0)
-EV = dict(tick=ev_tick, soft=ev_soft, chord=ev_chord, bloom=ev_bloom, rise=ev_rise, thud=ev_thud, tock=ev_tock, stamp=ev_stamp, shimmer=ev_shimmer)
+# ---------- 《毒药谜题》加的音效：都是合成的，不用采样 ----------
+def addat(buf, x, i):                                 # 把 x 叠进 buf 的第 i 个采样起，长短不一时自动截断
+    n = min(len(x), len(buf) - i)
+    if n > 0: buf[i:i + n] += x[:n]
+def bandpass(x, lo, hi, order=2):
+    b, a = butter(order, [lo / (SR / 2), hi / (SR / 2)], "band"); return lfilter(b, a, x, axis=0)
+def glide(f0, f1, dur, curve=1.0):                    # 频率从 f0 滑到 f1（指数），返回相位已积分的正弦
+    n = int(dur * SR); u = (np.arange(n) / n) ** curve; f = f0 * (f1 / f0) ** u
+    return np.sin(2 * np.pi * np.cumsum(f) / SR)
+def ev_glass(rng, p):                                 # 玻璃瓶磕在桌上：一记不和谐的小钟声 + 一下更轻的回弹
+    out = np.zeros(int(.9 * SR))
+    for k, (delay, g) in enumerate([(0, 1.0), (.065, .45)]):
+        f0 = 2150 * (1 + .03 * k); x = tone(f0, .8, .22, ((1, 1), (2.32, .5), (4.25, .28), (6.0, .12)), attack=.0008)
+        cl = highpass(rng.standard_normal(int(.006 * SR)), 3500) * env_exp(int(.006 * SR), .0015) * .6; x[:len(cl)] += cl
+        addat(out, x * g, int(delay * SR))
+    addat(out, tone(140, .25, .05, ((1, 1),), attack=.001) * .25, 0)
+    return pan(out * .2 * p.get("gain", 1), -.1)
+def ev_paper(rng, p):                                 # 纸滑过桌面
+    n = int(.45 * SR); t = np.arange(n) / SR; e = np.sin(np.pi * np.minimum(1, t / .45)) ** 1.5
+    x = bandpass(rng.standard_normal(n), 700, 5200) * e * (.7 + .3 * np.abs(np.sin(t * 70)))
+    return pan(x * .1 * p.get("gain", 1), rng.uniform(-.3, .3))
+def ev_type(rng, p):                                  # 打字机的一个字
+    n = int(.09 * SR); x = highpass(rng.standard_normal(n), 2000) * env_exp(n, .004, .0005) * .5
+    x += tone(170 + 12 * (int(p.get("pitch", 0)) % 5), .09, .02, ((1, 1),), attack=.0005)[:n] * .8
+    x += tone(3100, .09, .01, ((1, 1),), attack=.0003)[:n] * .25
+    return pan(x * .1 * p.get("gain", 1), rng.uniform(-.25, .25))
+def ev_pen(rng, p):                                   # 笔尖划纸：一段一段的沙沙声
+    dur = p.get("dur", 1.0); n = int(dur * SR); t = np.arange(n) / SR
+    strokes = np.abs(np.sin(2 * np.pi * (9 + 3 * np.sin(t * 2.3)) * t)) ** 2 * (.6 + .4 * rng.random(n) ** 4)
+    x = bandpass(rng.standard_normal(n), 1600, 6500) * strokes * np.minimum(1, t / .05) * np.minimum(1, (dur - t) / .08)
+    return pan(x * .07 * p.get("gain", 1), .15)
+def ev_ding(rng, p):                                  # 到账提示音：两声清脆的小铃
+    out = np.zeros(int(1.4 * SR))
+    for delay, f0 in [(0, 1318.5), (.095, 1975.5)]:
+        addat(out, tone(f0, 1.2, .42, ((1, 1), (2.0, .12), (3.01, .06)), attack=.003), int(delay * SR))
+    return pan(out * .2 * p.get("gain", 1), .1)
+def ev_scan(rng, p):                                  # 扫描：一道从低到高的气流 + 一根很细的滑音
+    dur = p.get("dur", 1.5); n = int(dur * SR); t = np.arange(n) / SR; e = np.sin(np.pi * np.minimum(1, t / dur)) ** 1.3
+    ns = rng.standard_normal(n); out = np.zeros(n); seg_n = 8
+    for k in range(seg_n):                            # 分段带通，中心频率一路往上走
+        a, b = k * n // seg_n, (k + 1) * n // seg_n; fc = 400 * (3000 / 400) ** (k / (seg_n - 1))
+        out[a:b] = bandpass(ns, fc * .7, fc * 1.4)[a:b]
+    x = out * e * .5 + glide(300, 900, dur)[:n] * e * .08
+    return pan(x * .25 * p.get("gain", 1), 0)
+def ev_strain(rng, p):                                # 往下拽：两根很近的低音拍出"绷紧"的感觉，越拽越紧
+    dur = p.get("dur", 2.4); n = int(dur * SR); t = np.arange(n) / SR; u = t / dur
+    x = glide(110, 130, dur) + glide(116, 141, dur) * .8
+    trem = .7 + .3 * np.sin(2 * np.pi * (4 + 10 * u) * t); e = np.minimum(1, t / .2) * np.minimum(1, (dur - t) / .15)
+    creak = bandpass(rng.standard_normal(n), 300, 900) * (rng.random(n) > .996) * 3
+    return pan((x * trem * .12 + lowpass(creak, 1200) * .05) * e * p.get("gain", 1), 0)
+def ev_snap(rng, p):                                  # 弹回去：一声向下滑的"嘣"
+    x = glide(950, 230, .16, .6) * env_exp(int(.16 * SR), .08, .001)
+    cl = highpass(rng.standard_normal(int(.008 * SR)), 2500) * env_exp(int(.008 * SR), .002) * .5; x[:len(cl)] += cl
+    return pan(x * .28 * p.get("gain", 1), 0)
+def ev_flip(rng, p):                                  # 翻一张卡片
+    n = int(.08 * SR); x = np.zeros(n)
+    for d in (0, .012): addat(x, bandpass(rng.standard_normal(int(.03 * SR)), 1000, 4500) * env_exp(int(.03 * SR), .006, .001), int(d * SR))
+    return pan(x * .2 * p.get("gain", 1), rng.uniform(-.2, .2))
+def ev_clock(rng, p):                                 # 钟摆的一声嘀嗒（木头）
+    n = int(.12 * SR); x = tone(1800, .12, .008, ((1, 1),), attack=.0003)[:n] + tone(900, .12, .018, ((1, 1), (2.6, .3)), attack=.0005)[:n] * .7
+    x += highpass(rng.standard_normal(n), 3000) * env_exp(n, .002) * .3
+    return pan(x * .16 * p.get("gain", 1), .2)
+def ev_fail(rng, p):                                  # 到账失败：两声往下走的闷音
+    out = np.zeros(int(.5 * SR))
+    for delay, f0 in [(0, 220), (.14, 174.6)]:
+        n = int(.16 * SR); t = np.arange(n) / SR; x = (np.sin(2 * np.pi * f0 * t) + .35 * np.sin(2 * np.pi * 3 * f0 * t)) * np.minimum(1, t / .004) * np.exp(-t / .07)
+        addat(out, lowpass(x, 1400), int(delay * SR))
+    return pan(out * .3 * p.get("gain", 1), 0)
+def ev_shrink(rng, p):                                # 缩小：一口往下走的风声 + 下滑音
+    dur = .7; n = int(dur * SR); t = np.arange(n) / SR; e = np.sin(np.pi * np.minimum(1, t / dur)) ** 1.2
+    ns = rng.standard_normal(n); out = np.zeros(n)
+    for k in range(6): a, b = k * n // 6, (k + 1) * n // 6; fc = 5000 * (400 / 5000) ** (k / 5); out[a:b] = lowpass(ns, fc)[a:b]
+    return pan((out * .5 + glide(800, 200, dur) * .1) * e * .25 * p.get("gain", 1), 0)
+def ev_slide(rng, p):                                 # 沿尺子滑过去
+    dur = p.get("dur", 1.8); n = int(dur * SR); t = np.arange(n) / SR; e = np.sin(np.pi * np.minimum(1, t / dur)) ** 1.6
+    ns = rng.standard_normal(n); out = np.zeros(n)
+    for k in range(8): a, b = k * n // 8, (k + 1) * n // 8; fc = 300 * 4 ** (k / 7); out[a:b] = bandpass(ns, fc * .6, fc * 1.6)[a:b]
+    return pan(out * e * .18 * p.get("gain", 1), lerp_pan(t, dur))
+def lerp_pan(t, dur): return 0
+def ev_gulp(rng, p):                                  # 咕咚：两下往下沉的水声
+    out = np.zeros(int(.6 * SR))
+    for delay in (0, .17):
+        n = int(.11 * SR); x = glide(320, 110, .11, .7)[:n] * env_exp(n, .05, .004); w = lowpass(rng.standard_normal(n), 900) * env_exp(n, .03) * .4
+        addat(out, x + w, int(delay * SR))
+    return pan(out * .45 * p.get("gain", 1), 0)
+
+EV = dict(tick=ev_tick, soft=ev_soft, chord=ev_chord, bloom=ev_bloom, rise=ev_rise, thud=ev_thud, tock=ev_tock, stamp=ev_stamp, shimmer=ev_shimmer,
+          glass=ev_glass, paper=ev_paper, type=ev_type, pen=ev_pen, ding=ev_ding, scan=ev_scan, strain=ev_strain, snap=ev_snap, flip=ev_flip,
+          clock=ev_clock, fail=ev_fail, shrink=ev_shrink, slide=ev_slide, gulp=ev_gulp)
 
 def reverb(x, rng, t60=3.6, wet=.42):
     n = int(t60 * SR); t = np.arange(n) / SR

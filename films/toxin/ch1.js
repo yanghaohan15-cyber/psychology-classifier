@@ -46,6 +46,7 @@ CH.parts.push({
     if (t > T.card) {
       X.notice(fr, nx, ny, { amount: money(t), a: ss(t, T.card, T.card + .2) * out, s: 1.02 * pop * (1 + .05 * pulse + .07 * big), w: lerp(430, 520, ss(t, T.roll2, T.roll2 + .6)) });
       if (pulse > .01) fr.glow(nx, ny, 420, C.gold, .3 * pulse * out);
+      if (t >= 55.6 && t < 55.65) fr.sfx(55.6, 'ding', { gain: .4 });
       if (big > 0) fr.glow(nx, ny, 520, C.gold, .12 * big * out * (1 + .2 * Math.sin(t * 3)));
       if (t >= T.card && t < T.card + .05) fr.sfx(T.card, 'ding', { gain: .9 });
       [T.roll1, T.roll2].forEach(r => { for (let i = 0; i < 8; i++) { const at = r + i * .1; if (t >= at && t < at + .05) fr.sfx(at, 'tick', { pitch: 3 + i % 5, gain: .35 }); } });

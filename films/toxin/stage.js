@@ -78,7 +78,8 @@ CH.world = function (fr, t) {
     if (va > .003 && vx > -200 && vx < W + 200) {
       const o = Object.assign({ fill: fillOf(n, t), label: Wd.labelOf(n), glass: 1, refl: .14 * (1 - .7 * zoomed) }, st.vial || {});
       const by = vy + (st.vialDy || 0), cx = vx + (st.vialDx || 0), hh = vh * (st.vialS || 1);
-      U.push(x => { X.vialReflection(x, cx, by, hh, Object.assign({}, o, { a: va })); X.vialUnder(x, cx, by, hh, Object.assign({}, o, { a: va })); });
+      const refl = hh >= 90 && o.refl * va > .03;
+      U.push(x => { if (refl) X.vialReflection(x, cx, by, hh, Object.assign({}, o, { a: va })); X.vialUnder(x, cx, by, hh, Object.assign({}, o, { a: va })); });
       LV.push(() => { X.vialLight(fr.x, cx, by, hh, Object.assign({}, o, { a: va })); X.caustic(fr, cx, by, hh, va * (o.fill > .05 ? 1 : 0)); });
     }
     /* 月亮 */
